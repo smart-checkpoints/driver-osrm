@@ -1,8 +1,9 @@
 {
-  "name": "gbds-driver-osrm",
+  "name": "smart-checkpoints-driver-osrm",
   "version": "1.0.0",
   "private": true,
-  "description": "GBDS Distance Driver that resolves edge distances with OSRM.",
+  "description": "Smart Checkpoints Distance Driver that resolves edge distances with OSRM.",
+  "license": "MIT",
   "main": "src/index.js",
   "scripts": {
     "start": "node --env-file=.env src/index.js",

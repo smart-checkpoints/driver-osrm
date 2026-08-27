@@ -217,9 +217,10 @@ class Driver {
           (delivered ? "" : " NOT-DELIVERED (connection dropped)"),
       );
     } catch (err) {
-      // GBDS has no inbound failure event -- server.js reads only "auth" and
-      // "distance-result" -- so a failed edge is logged here and left to the
-      // 30s timeout on the server side. Never emit a guessed distance.
+      // The protocol has no inbound failure event -- server.js reads only
+      // "auth" and "distance-result" -- so a failed edge is logged here and
+      // left to the server's 30s timeout, which then records distance = 0 for
+      // this edge. Never emit a guessed distance.
       log.error(
         `request=${requestId} edge=${edge} FAILED after ${Date.now() - startedAt}ms: ` +
           `${err.message}${err.attempts ? ` (osrm_attempts=${err.attempts})` : ""}`,

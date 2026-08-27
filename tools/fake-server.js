@@ -1,8 +1,9 @@
 "use strict";
 
 /**
- * Stands in for the GBDS server so the OSRM driver can be exercised end to end
- * without running GBDS or touching its database.
+ * Stands in for the Smart Checkpoints server so the OSRM driver can be
+ * exercised end to end without running the real server or touching its
+ * database.
  *
  * It reproduces the parts of server.js the driver actually talks to:
  *   - a ws server on the /distance-driver upgrade path
@@ -23,9 +24,9 @@ const API_KEY = process.env.FAKE_API_KEY || "test-api-key";
 const PROJECT_ID = Number(process.env.FAKE_PROJECT_ID || 1);
 const PENDING_TIMEOUT_MS = Number(process.env.PENDING_TIMEOUT_MS || 30000);
 
-// Real places in Cairo, stored the way GBDS stores nodes: x_coord is
-// longitude, y_coord is latitude. Node 3 sits in the Atlantic so OSRM has no
-// road to route over, and node 99 below does not exist at all.
+// Real places in Cairo, stored the way Smart Checkpoints stores nodes:
+// x_coord is longitude, y_coord is latitude. Node 3 sits in the Atlantic so
+// OSRM has no road to route over, and node 99 below does not exist at all.
 const NODES = [
   { node_id: 1, id_in_project: 0, x_coord: 31.2357, y_coord: 30.0444 },
   { node_id: 2, id_in_project: 1, x_coord: 31.2243, y_coord: 30.0459 },
@@ -44,7 +45,7 @@ const EDGES = [
 const pending = new Map();
 
 function log(message) {
-  console.log(`[${new Date().toISOString()}] fake-gbds ${message}`);
+  console.log(`[${new Date().toISOString()}] fake-server ${message}`);
 }
 
 const app = http.createServer((req, res) => {
@@ -85,12 +86,19 @@ function requestDistance(ws, from, to, note) {
 
   const timeout = setTimeout(() => {
     pending.delete(requestId);
-    log(`TIMEOUT  edge ${from}->${to} after ${PENDING_TIMEOUT_MS}ms — no distance-result`);
+    log(`TIMEOUT  edge ${from}->${to} after ${PENDING_TIMEOUT_MS}ms, no distance-result`);
     reportIfIdle();
   }, PENDING_TIMEOUT_MS);
 
   pending.set(requestId, { from, to, startedAt, timeout });
-  ws.send(JSON.stringify({ type: "calculate-distance", requestId, fromIdInProject: from, toIdInProject: to }));
+  ws.send(
+    JSON.stringify({
+      type: "calculate-distance",
+      requestId,
+      fromIdInProject: from,
+      toIdInProject: to,
+    }),
+  );
   log(`REQUEST  edge ${from}->${to}  (${note})`);
 }
 

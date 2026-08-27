@@ -2,7 +2,8 @@
 
 // Fixed by the driver contract: at most three attempts per edge, backing off
 // between them. Three attempts of REQUEST_TIMEOUT_MS plus 1.5s of backoff has
-// to stay inside the 30s the GBDS server waits for a distance-result.
+// to stay inside the 30s the Smart Checkpoints server waits for a
+// distance-result.
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 500;
 

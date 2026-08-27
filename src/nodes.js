@@ -1,8 +1,9 @@
 "use strict";
 
 /**
- * GBDS asks for a distance by node index (id_in_project), not by coordinate,
- * so the driver resolves indices to GPS itself via GET /project/:id/nodes.
+ * Smart Checkpoints asks for a distance by node index (id_in_project), not by
+ * coordinate, so the driver resolves indices to GPS itself via
+ * GET /project/:id/nodes.
  *
  * Axis mapping: x_coord is longitude, y_coord is latitude.
  */
@@ -27,9 +28,9 @@ class NodeDirectory {
   }
 
   /**
-   * Concurrent callers share one in-flight fetch. GBDS asks for every edge at
-   * once when the driver connects, so without this the first burst would fire
-   * one node lookup per edge.
+   * Concurrent callers share one in-flight fetch. The server asks for every
+   * edge at once when the driver connects, so without this the first burst
+   * would fire one node lookup per edge.
    */
   async load({ force = false } = {}) {
     if (this.#loaded && !force) return;
@@ -99,9 +100,9 @@ class NodeDirectory {
       throw new Error(`node ${id} has non-numeric coordinates (x=${lng}, y=${lat})`);
     }
     if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-      // GBDS stores x_coord/y_coord as plain REALs and its web client treats
-      // them as canvas positions, so this is the likely failure when a project
-      // holds drawing coordinates rather than GPS.
+      // Smart Checkpoints stores x_coord/y_coord as plain REALs and its web
+      // client treats them as canvas positions, so this is the likely failure
+      // when a project holds drawing coordinates rather than GPS.
       throw new Error(
         `node ${id} is at x=${lng}, y=${lat}, which is not a GPS position ` +
           "(expected x_coord = longitude in [-180,180], y_coord = latitude in [-90,90])",

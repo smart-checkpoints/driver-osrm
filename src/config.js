@@ -28,9 +28,9 @@ function stripTrailingSlash(url) {
 }
 
 /**
- * The GBDS REST API is served by the same http.Server that hosts the
- * distance-driver WebSocket, so the REST origin can be derived from the
- * WebSocket URL unless it is overridden explicitly.
+ * The Smart Checkpoints REST API is served by the same http.Server that
+ * hosts the distance-driver WebSocket, so the REST origin can be derived
+ * from the WebSocket URL unless it is overridden explicitly.
  */
 function deriveHttpUrl(wsUrl) {
   const url = new URL(wsUrl);
@@ -38,6 +38,13 @@ function deriveHttpUrl(wsUrl) {
   return url.origin;
 }
 
+/**
+ * Reads the driver's configuration from the environment.
+ *
+ * The GBDS_* variable names are deliberately unchanged. GBDS is the internal
+ * graph architecture inside the Smart Checkpoints server; renaming the
+ * variables would break every existing deployment's .env for no gain.
+ */
 function loadConfig(env = process.env) {
   const wsUrl = env.GBDS_WS_URL || DEFAULT_WS_URL;
 

@@ -1,8 +1,12 @@
-# gbds-driver-osrm
+# Smart Checkpoints OSRM Distance Driver
 
-A GBDS **Distance Driver**: it connects to the GBDS server, waits for distance
-requests, asks OSRM for the driving route between the two checkpoints, and
-sends back the route distance in metres.
+Smart Checkpoints measures average speed over distance across a graph of camera
+checkpoints. This is its first real-world Distance Driver, replacing the Unity
+simulation driver: working, tested against the mock server, not yet field validated.
+
+A Smart Checkpoints **Distance Driver**: it connects to the server, waits for
+distance requests, asks OSRM for the driving route between the two checkpoints,
+and sends back the route distance in metres.
 
 It does one thing. No geometry, no alternative routes, no caching of distances,
 no second map provider, no fallback estimate. If OSRM cannot answer, the driver
@@ -10,15 +14,15 @@ says nothing and logs why.
 
 ## The event contract
 
-This is implemented against `server.js` in the GBDS server repo, not against a
-spec. Everything below is what that file actually does.
+This is implemented against `server.js` in the Smart Checkpoints server repo,
+not against a spec. Everything below is what that file actually does.
 
-**Transport.** A raw WebSocket (`ws`), not Socket.IO. Socket.IO on the GBDS
-server is for the browser clients only. The driver connects to the upgrade path
-`/distance-driver` on the same origin and port as the REST API:
+**Transport.** A raw WebSocket (`ws`), not Socket.IO. Socket.IO on the Smart
+Checkpoints server is for the browser clients only. The driver connects to the
+upgrade path `/distance-driver` on the same origin and port as the REST API:
 
 ```
-ws://<gbds-host>:3000/distance-driver
+ws://<server-host>:3000/distance-driver
 ```
 
 **Authentication is a message, not a header.** The driver opens the socket with
@@ -56,9 +60,9 @@ driver keeps it for the lifetime of the connection.
 }
 ```
 
-**Distance results.** `distance` is in **metres** — GBDS divides it by a km/h
-speed limit and multiplies by 3.6 to get seconds, so metres is the unit the
-violation maths expects:
+**Distance results.** `distance` is in **metres**. The server divides it by a
+km/h speed limit and multiplies by 3.6 to get seconds, so metres is the unit
+the violation maths expects:
 
 ```jsonc
 // driver -> server
@@ -69,23 +73,23 @@ violation maths expects:
 }
 ```
 
-**There is no failure event.** The GBDS server's message handler reads exactly
-two inbound types, `auth` and `distance-result`; anything else is dropped
-silently. A request that the driver cannot answer is therefore handled by the
-server's own 30-second timeout, after which GBDS falls back to `distance = 0`
-on its side. This driver logs the failure at ERROR and sends nothing. It never
-emits a guessed or straight-line distance.
+**There is no failure event.** The Smart Checkpoints server's message handler
+reads exactly two inbound types, `auth` and `distance-result`; anything else is
+dropped silently. A request that the driver cannot answer is therefore handled
+by the server's own 30-second timeout, after which the server falls back to
+`distance = 0` on its side. This driver logs the failure at ERROR and sends
+nothing. It never emits a guessed or straight-line distance.
 
-**There is no handshake or heartbeat beyond `auth`.** The GBDS server
-configures no ping/pong on this socket.
+**There is no handshake or heartbeat beyond `auth`.** The Smart Checkpoints
+server configures no ping/pong on this socket.
 
 ## Coordinates
 
-GBDS sends node indices, so the driver resolves them itself over the REST API —
-this is the one place the `x-api-key` header is used:
+The server sends node indices, so the driver resolves them itself over the REST
+API. This is the one place the `x-api-key` header is used:
 
 ```
-GET http://<gbds-host>:3000/project/<projectId>/nodes
+GET http://<server-host>:3000/project/<projectId>/nodes
 x-api-key: <project api key>
 ```
 
@@ -93,10 +97,10 @@ x-api-key: <project api key>
 [ { "node_id": 1, "id_in_project": 0, "x_coord": 31.2357, "y_coord": 30.0444 } ]
 ```
 
-**`x_coord` is longitude and `y_coord` is latitude.** GBDS stores these as
-plain REALs with no declared units — its own web client draws them as canvas
-positions — so the driver validates the range and refuses anything outside
-latitude ±90 / longitude ±180 rather than sending nonsense to OSRM. If a
+**`x_coord` is longitude and `y_coord` is latitude.** Smart Checkpoints stores
+these as plain REALs with no declared units (its own web client draws them as
+canvas positions), so the driver validates the range and refuses anything
+outside latitude ±90 / longitude ±180 rather than sending nonsense to OSRM. If a
 project holds drawing coordinates rather than GPS, every request for it fails
 loudly with that message instead of producing a plausible wrong number.
 
@@ -122,6 +126,10 @@ Requires Node 18 or newer. One dependency: `ws`.
 | `REQUEST_TIMEOUT_MS` | `5000` | Per-attempt timeout for OSRM and for the node lookup. |
 | `MAX_CONCURRENT_OSRM` | `4` | How many OSRM calls may be in flight at once. |
 
+The `GBDS_` prefix is kept deliberately. GBDS is the internal graph
+architecture inside the Smart Checkpoints server, not the product name;
+renaming these variables would break every existing deployment's `.env`.
+
 Copy `.env.example` to `.env` and run with `node --env-file=.env src/index.js`,
 or export the variables yourself.
 
@@ -131,14 +139,14 @@ or export the variables yourself.
 GBDS_API_KEY=your-project-key npm start
 ```
 
-## Test it without running GBDS
+## Test it without running the server
 
-`tools/fake-server.js` stands in for the GBDS server. It reproduces the upgrade
-path, the auth exchange, the node endpoint, the 30-second pending timeout, and
-the burst of requests that GBDS fires the instant a driver authenticates. Its
-fixture graph is four Cairo checkpoints plus two deliberate failures — an edge
-into the Atlantic where OSRM has no road, and an edge to a node that does not
-exist.
+`tools/fake-server.js` stands in for the Smart Checkpoints server. It
+reproduces the upgrade path, the auth exchange, the node endpoint, the
+30-second pending timeout, and the burst of requests that the server fires the
+instant a driver authenticates. Its fixture graph is four Cairo checkpoints
+plus two deliberate failures: an edge into the Atlantic where OSRM has no
+road, and an edge to a node that does not exist.
 
 In one terminal:
 
@@ -162,7 +170,7 @@ report quickly instead of after the realistic 30 seconds.
 
 **OSRM retries.** Three attempts maximum, backing off 500ms then 1000ms.
 Retried: network errors, timeouts, and HTTP 5xx. Not retried: HTTP 4xx and any
-`code` other than `Ok` — those are OSRM answering the question, and asking the
+`code` other than `Ok`. Those are OSRM answering the question, and asking the
 identical question again gets the identical answer. `NoRoute` in particular is
 a valid answer and is never retried. Note that the public demo server returns
 rate-limit and no-route responses as 4xx, so neither is retried by design.
@@ -170,18 +178,18 @@ rate-limit and no-route responses as 4xx, so neither is retried by design.
 **Reconnect.** If the socket drops, the driver reconnects with exponential
 backoff from 1s to a 30s ceiling, with jitter. The backoff resets once the
 server confirms authentication. An invalid API key is logged at ERROR and
-retried on the same backoff, since a key can be added to GBDS later.
+retried on the same backoff, since a key can be added to the project later.
 
 **Isolation.** Each request runs on its own. A failed edge is logged and
 dropped; it does not close the connection, does not affect other in-flight
 requests, and does not stop the process.
 
-**Concurrency.** GBDS calls `recalculateAllDistances` the moment a driver
+**Concurrency.** The server calls `recalculateAllDistances` the moment a driver
 authenticates, which asks for *every* edge in the project at once. On a
 reconnect that is the whole graph in one burst, so `MAX_CONCURRENT_OSRM`
 throttles it rather than firing it all at the public demo server at once.
 Three attempts of `REQUEST_TIMEOUT_MS` plus backoff plus queue time needs to
-stay under the server's 30s budget — that holds comfortably at the defaults.
+stay under the server's 30s budget, which holds comfortably at the defaults.
 
 **Distances are raw.** The number sent is `routes[0].distance` from OSRM,
 unrounded and unmodified.
@@ -191,8 +199,43 @@ unrounded and unmodified.
 One line per request, on stdout:
 
 ```
-[2026-08-27T15:52:44.537Z] INFO  gbds-driver-osrm/1.0.0 request=3b704795-… edge=0->1 from=30.044400,31.235700 to=30.045900,31.224300 distance=1767.5m osrm_attempts=1 elapsed=344ms
+[2026-08-27T15:52:44.537Z] INFO  smart-checkpoints-driver-osrm/1.0.0 request=3b704795-... edge=0->1 from=30.044400,31.235700 to=30.045900,31.224300 distance=1767.5m osrm_attempts=1 elapsed=344ms
 ```
 
 Coordinates are printed `lat,lng`. Failures go to stderr with the same
 `request=` and `edge=` fields and the reason OSRM or the node lookup gave.
+
+## Known Limitations
+
+These are known and understood. They are properties of the current protocol and
+schema rather than defects in this driver, and they are listed here so whoever
+operates it knows where the edges are.
+
+**The protocol has no failure event.** The server reads exactly two inbound
+message types, `auth` and `distance-result`, and silently drops anything else.
+There is no message a driver can send to say that an edge could not be
+resolved.
+
+**A driver that cannot answer produces a silent zero.** With no
+`distance-result`, the server's 30-second timeout sets `distance = 0` for that
+edge. An edge of zero metres produces no violations at all: no vehicle can be
+too fast over no distance. Nothing surfaces on either side. The server stores a
+number it treats as valid, and the only record of the failure is this driver's
+ERROR line in its own log. It fails safe, but it also fails silent.
+
+**Node coordinates are stored untyped.** `x_coord` and `y_coord` are plain
+REALs with no declared units, and the Smart Checkpoints web client draws them
+as canvas positions. A project holding canvas coordinates rather than GPS will
+fail every request: the driver rejects the coordinates at the range check
+instead of sending nonsense to OSRM, which is loud in the driver log. But by
+the point above, every edge in that project still becomes a silent zero on the
+server.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+## Links
+
+- [Smart Checkpoints on GitHub](https://github.com/smart-checkpoints)
+- [Documentation](https://docs.smartcheckpoints.dev)
