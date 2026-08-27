@@ -5,7 +5,7 @@
  * coordinate, so the driver resolves indices to GPS itself via
  * GET /project/:id/nodes.
  *
- * Axis mapping: x_coord is longitude, y_coord is latitude.
+ * Nodes carry WGS84 `latitude` and `longitude` in degrees.
  */
 class NodeDirectory {
   #httpUrl;
@@ -70,8 +70,8 @@ class NodeDirectory {
     for (const row of rows) {
       byId.set(Number(row.id_in_project), {
         idInProject: Number(row.id_in_project),
-        lng: Number(row.x_coord),
-        lat: Number(row.y_coord),
+        lng: Number(row.longitude),
+        lat: Number(row.latitude),
       });
     }
     return byId;
@@ -97,15 +97,16 @@ class NodeDirectory {
 
     const { lat, lng } = node;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      throw new Error(`node ${id} has non-numeric coordinates (x=${lng}, y=${lat})`);
+      throw new Error(
+        `node ${id} has non-numeric coordinates (lat=${lat}, lng=${lng})`,
+      );
     }
     if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-      // Smart Checkpoints stores x_coord/y_coord as plain REALs and its web
-      // client treats them as canvas positions, so this is the likely failure
-      // when a project holds drawing coordinates rather than GPS.
+      // The server validates this range on the way in, so reaching here means
+      // the project predates that check or the server is not Smart Checkpoints.
       throw new Error(
-        `node ${id} is at x=${lng}, y=${lat}, which is not a GPS position ` +
-          "(expected x_coord = longitude in [-180,180], y_coord = latitude in [-90,90])",
+        `node ${id} is at lat=${lat}, lng=${lng}, which is not a GPS position ` +
+          "(expected latitude in [-90,90], longitude in [-180,180])",
       );
     }
 

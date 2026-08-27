@@ -24,14 +24,14 @@ const API_KEY = process.env.FAKE_API_KEY || "test-api-key";
 const PROJECT_ID = Number(process.env.FAKE_PROJECT_ID || 1);
 const PENDING_TIMEOUT_MS = Number(process.env.PENDING_TIMEOUT_MS || 30000);
 
-// Real places in Cairo, stored the way Smart Checkpoints stores nodes:
-// x_coord is longitude, y_coord is latitude. Node 3 sits in the Atlantic so
-// OSRM has no road to route over, and node 99 below does not exist at all.
+// Real places in Cairo, stored the way Smart Checkpoints stores nodes: WGS84
+// `latitude` and `longitude` in degrees. Node 3 sits in the Atlantic so OSRM
+// has no road to route over, and node 99 below does not exist at all.
 const NODES = [
-  { node_id: 1, id_in_project: 0, x_coord: 31.2357, y_coord: 30.0444 },
-  { node_id: 2, id_in_project: 1, x_coord: 31.2243, y_coord: 30.0459 },
-  { node_id: 3, id_in_project: 2, x_coord: 31.2497, y_coord: 30.0626 },
-  { node_id: 4, id_in_project: 3, x_coord: -30.0, y_coord: 0.0 },
+  { node_id: 1, id_in_project: 0, latitude: 30.0444, longitude: 31.2357 },
+  { node_id: 2, id_in_project: 1, latitude: 30.0459, longitude: 31.2243 },
+  { node_id: 3, id_in_project: 2, latitude: 30.0626, longitude: 31.2497 },
+  { node_id: 4, id_in_project: 3, latitude: 0.0, longitude: -30.0 },
 ];
 
 const EDGES = [

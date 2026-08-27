@@ -94,15 +94,13 @@ x-api-key: <project api key>
 ```
 
 ```jsonc
-[ { "node_id": 1, "id_in_project": 0, "x_coord": 31.2357, "y_coord": 30.0444 } ]
+[ { "node_id": 1, "id_in_project": 0, "latitude": 30.0444, "longitude": 31.2357 } ]
 ```
 
-**`x_coord` is longitude and `y_coord` is latitude.** Smart Checkpoints stores
-these as plain REALs with no declared units (its own web client draws them as
-canvas positions), so the driver validates the range and refuses anything
-outside latitude ±90 / longitude ±180 rather than sending nonsense to OSRM. If a
-project holds drawing coordinates rather than GPS, every request for it fails
-loudly with that message instead of producing a plausible wrong number.
+**Coordinates are WGS84 degrees.** The server validates them on the way in and
+rejects anything outside latitude ±90 / longitude ±180, and the driver checks
+the same range again before sending anything to OSRM, so a bad coordinate fails
+loudly instead of producing a plausible wrong number.
 
 The node list is fetched once per connection and re-fetched once on a cache
 miss, so nodes added while the driver is connected resolve without a restart.
@@ -223,13 +221,10 @@ too fast over no distance. Nothing surfaces on either side. The server stores a
 number it treats as valid, and the only record of the failure is this driver's
 ERROR line in its own log. It fails safe, but it also fails silent.
 
-**Node coordinates are stored untyped.** `x_coord` and `y_coord` are plain
-REALs with no declared units, and the Smart Checkpoints web client draws them
-as canvas positions. A project holding canvas coordinates rather than GPS will
-fail every request: the driver rejects the coordinates at the range check
-instead of sending nonsense to OSRM, which is loud in the driver log. But by
-the point above, every edge in that project still becomes a silent zero on the
-server.
+**A node with a bad GPS fix still routes.** A coordinate inside the valid range
+but in the wrong place produces a real route to the wrong location, and neither
+side can tell. The driver has no way to detect this; diagnosing it is the
+server's job.
 
 ## License
 
