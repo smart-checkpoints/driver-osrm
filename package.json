@@ -1,0 +1,17 @@
+{
+  "name": "gbds-driver-osrm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GBDS Distance Driver that resolves edge distances with OSRM.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --env-file=.env src/index.js",
+    "fake-server": "node tools/fake-server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
