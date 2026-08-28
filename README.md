@@ -111,22 +111,25 @@ miss, so nodes added while the driver is connected resolve without a restart.
 npm install
 ```
 
-Requires Node 18 or newer. One dependency: `ws`.
+Requires Node 20 or newer, the same floor as the rest of the ecosystem. One
+dependency: `ws`.
 
 ## Environment variables
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `GBDS_WS_URL` | `ws://localhost:3000/distance-driver` | Driver WebSocket endpoint. |
-| `GBDS_API_KEY` | *(required)* | Project API key, used for both the auth message and the `x-api-key` header. |
-| `GBDS_HTTP_URL` | origin of `GBDS_WS_URL` | REST base URL. Only set this if the REST API is not on the same origin. |
+| `SC_WS_URL` | `ws://localhost:3000/distance-driver` | Driver WebSocket endpoint. |
+| `SC_API_KEY` | *(required)* | Project API key, used for both the auth message and the `x-api-key` header. |
+| `SC_HTTP_URL` | origin of `SC_WS_URL` | REST base URL. Only set this if the REST API is not on the same origin. |
 | `OSRM_BASE_URL` | `https://router.project-osrm.org` | OSRM server. The default is the public demo instance. |
 | `REQUEST_TIMEOUT_MS` | `5000` | Per-attempt timeout for OSRM and for the node lookup. |
 | `MAX_CONCURRENT_OSRM` | `4` | How many OSRM calls may be in flight at once. |
 
-The `GBDS_` prefix is kept deliberately. GBDS is the internal graph
-architecture inside the Smart Checkpoints server, not the product name;
-renaming these variables would break every existing deployment's `.env`.
+Every Smart Checkpoints variable is also read under its old `GBDS_` name
+(`GBDS_WS_URL`, `GBDS_API_KEY`, `GBDS_HTTP_URL`), so existing `.env` files keep
+working unchanged. GBDS was the graph architecture inside the server rather than
+the product name, and the `SC_` spelling is what the rest of the ecosystem uses.
+Where both are set, the `SC_` one wins.
 
 Copy `.env.example` to `.env` and run with `node --env-file=.env src/index.js`,
 or export the variables yourself.
@@ -134,7 +137,7 @@ or export the variables yourself.
 ## Run
 
 ```bash
-GBDS_API_KEY=your-project-key npm start
+SC_API_KEY=your-project-key npm start
 ```
 
 ## Test it without running the server
@@ -155,7 +158,7 @@ node tools/fake-server.js
 In another:
 
 ```bash
-GBDS_WS_URL=ws://localhost:3000/distance-driver GBDS_API_KEY=test-api-key npm start
+SC_WS_URL=ws://localhost:3000/distance-driver SC_API_KEY=test-api-key npm start
 ```
 
 The fake server prints a `RESULT` line per answered edge and a `TIMEOUT` line
@@ -232,5 +235,9 @@ MIT. See [LICENSE](LICENSE).
 
 ## Links
 
+- [Website](https://smartcheckpoints.xyz)
+- [Documentation](https://docs.smartcheckpoints.xyz), including the
+  [driver protocol](https://docs.smartcheckpoints.xyz/reference/driver-protocol)
+  and [distance drivers](https://docs.smartcheckpoints.xyz/concepts/distance-drivers)
 - [Smart Checkpoints on GitHub](https://github.com/smart-checkpoints)
-- [Documentation](https://docs.smartcheckpoints.dev)
+- [server](https://github.com/smart-checkpoints/server), which is what this driver talks to

@@ -2,7 +2,7 @@
   "name": "smart-checkpoints-driver-osrm",
   "version": "1.0.0",
   "private": true,
-  "description": "Smart Checkpoints Distance Driver that resolves edge distances with OSRM.",
+  "description": "A Smart Checkpoints distance driver that resolves edge distances with OSRM road routing.",
   "license": "MIT",
   "main": "src/index.js",
   "scripts": {
@@ -10,9 +10,25 @@
     "fake-server": "node tools/fake-server.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "ws": "^8.18.0"
-  }
+  },
+  "homepage": "https://smartcheckpoints.xyz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/smart-checkpoints/driver-osrm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/smart-checkpoints/driver-osrm/issues"
+  },
+  "keywords": [
+    "smart checkpoints",
+    "distance driver",
+    "average speed enforcement",
+    "section control",
+    "osrm",
+    "routing"
+  ]
 }
