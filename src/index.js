@@ -15,12 +15,15 @@ try {
 
 log.setTag(`${config.driverName}/${config.driverVersion}`);
 log.info(
-  `starting: server=${config.wsUrl} rest=${config.httpUrl} ` +
+  `starting: server=${config.wsUrl} ` +
     `osrm=${config.osrmBaseUrl} timeout=${config.requestTimeoutMs}ms ` +
     `max_concurrent=${config.maxConcurrentOsrm}`,
 );
 
-const driver = new Driver(config);
+// Some things reconnecting cannot fix. A second copy of this driver holding
+// the project's distance slot is one of them, and the useful response is to
+// stop with a non-zero exit code so whatever started this one notices.
+const driver = new Driver(config, { onFatal: () => process.exit(1) });
 driver.start();
 
 // A single bad edge must never take the process down. Every request handler

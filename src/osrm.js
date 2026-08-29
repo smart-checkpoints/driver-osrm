@@ -7,6 +7,14 @@
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 500;
 
+/**
+ * The OSRM codes that mean "I looked, and there is no road here".
+ *
+ * These are final. The road network does not change between attempts, and a
+ * Smart Checkpoints server told `no-route` marks the edge and stops asking.
+ */
+const NO_ROUTE_CODES = new Set(["NoRoute", "NoSegment", "NoTrips"]);
+
 class OsrmError extends Error {
   constructor(message, { retryable = false, code = null } = {}) {
     super(message);
@@ -21,13 +29,71 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** OSRM takes coordinates as lon,lat -- the opposite of how they are spoken. */
+/**
+ * OSRM takes coordinates as lon,lat -- the opposite of how they are spoken.
+ *
+ * `overview=simplified` with `geometries=geojson` returns the route shape in
+ * the one format Smart Checkpoints stores, in the same HTTP call that returns
+ * the distance: geometry costs a larger response and no extra request.
+ * `simplified`, not `full`, because there is one of these per edge and full
+ * polylines get large quickly.
+ */
 function buildRouteUrl(baseUrl, from, to) {
   const coordinates = `${from.lng},${from.lat};${to.lng},${to.lat}`;
   return (
     `${baseUrl}/route/v1/driving/${coordinates}` +
-    "?overview=false&alternatives=false&steps=false&annotations=false"
+    "?overview=simplified&geometries=geojson" +
+    "&alternatives=false&steps=false&annotations=false"
   );
+}
+
+/**
+ * The route shape, if OSRM returned one worth forwarding.
+ *
+ * Geometry is presentation: an edge with a distance and no shape is correct
+ * and enforceable, so anything doubtful is dropped rather than repaired.
+ */
+function readGeometry(route) {
+  const geometry = route && route.geometry;
+  if (!geometry || geometry.type !== "LineString") return null;
+  if (!Array.isArray(geometry.coordinates) || geometry.coordinates.length < 2) {
+    return null;
+  }
+  return geometry;
+}
+
+/**
+ * How far, in metres, each requested coordinate was from the road OSRM
+ * actually routed on.
+ *
+ * A checkpoint two hundred metres from the nearest road is either mispositioned
+ * or on a road OSRM does not know about, and either way the distance it
+ * produced is not the distance a car drives. The server stores this; Phase 5
+ * is what reads it.
+ */
+function readEndpointOffsets(body) {
+  if (!Array.isArray(body.waypoints)) return null;
+  const offsets = body.waypoints.map((waypoint) =>
+    waypoint && typeof waypoint.distance === "number" ? waypoint.distance : NaN,
+  );
+  return offsets.every((offset) => Number.isFinite(offset)) ? offsets : null;
+}
+
+/**
+ * The Smart Checkpoints protocol code for an OSRM failure.
+ *
+ * The distinction the server acts on is whether asking again could give a
+ * different answer. A refused route will be refused again; a timeout or a
+ * 500 will not necessarily be.
+ */
+function protocolErrorCode(err) {
+  if (!(err instanceof OsrmError)) return "unavailable";
+  if (err.retryable) return "unavailable";
+  if (err.code && NO_ROUTE_CODES.has(err.code)) return "no-route";
+  // A query OSRM read and rejected: a coordinate it cannot use, a malformed
+  // request, a service that is not there. Retrying will not help, and the
+  // server logs this one loudly because it means the request was wrong.
+  return "invalid-input";
 }
 
 /**
@@ -60,7 +126,9 @@ async function requestRoute(url, timeoutMs) {
     throw new OsrmError(`network error: ${err.message}`, { retryable: true });
   }
 
-  if (response.status >= 500) {
+  if (response.status >= 500 || response.status === 429) {
+    // 5xx is the server having a bad time; 429 is it asking for less of us.
+    // Neither says anything about whether these two points are connected.
     throw new OsrmError(`HTTP ${response.status} from OSRM`, { retryable: true });
   }
   if (!response.ok) {
@@ -98,21 +166,27 @@ async function requestRoute(url, timeoutMs) {
     });
   }
 
-  return route.distance;
+  return {
+    distance: route.distance,
+    path: readGeometry(route),
+    endpointOffsets: readEndpointOffsets(body),
+  };
 }
 
 /**
- * Driving distance in metres between two GPS points, exactly as OSRM reports
- * it. Retries network errors and 5xx only; a considered "no route" answer is
- * raised to the caller and never substituted with an estimate.
+ * The driving route between two GPS points, exactly as OSRM reports it:
+ * `{ distance, path, endpointOffsets, attempts }`, distance in metres.
+ *
+ * Retries network errors, 5xx and rate limits only; a considered "no route"
+ * answer is raised to the caller and never substituted with an estimate.
  */
 async function routeDistanceMeters(from, to, { baseUrl, timeoutMs }) {
   const url = buildRouteUrl(baseUrl, from, to);
 
   for (let attempt = 1; ; attempt++) {
     try {
-      const distance = await requestRoute(url, timeoutMs);
-      return { distance, attempts: attempt };
+      const route = await requestRoute(url, timeoutMs);
+      return { ...route, attempts: attempt };
     } catch (err) {
       err.attempts = attempt;
       const retryable = err instanceof OsrmError && err.retryable;
@@ -122,4 +196,10 @@ async function routeDistanceMeters(from, to, { baseUrl, timeoutMs }) {
   }
 }
 
-module.exports = { routeDistanceMeters, buildRouteUrl, OsrmError, MAX_ATTEMPTS };
+module.exports = {
+  routeDistanceMeters,
+  buildRouteUrl,
+  protocolErrorCode,
+  OsrmError,
+  MAX_ATTEMPTS,
+};

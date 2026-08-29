@@ -1,5 +1,6 @@
 "use strict";
 
+require("dotenv").config({ override: false });
 const pkg = require("../package.json");
 
 const DEFAULT_WS_URL = "ws://localhost:3000/distance-driver";
@@ -44,17 +45,6 @@ function stripTrailingSlash(url) {
 }
 
 /**
- * The Smart Checkpoints REST API is served by the same http.Server that
- * hosts the distance-driver WebSocket, so the REST origin can be derived
- * from the WebSocket URL unless it is overridden explicitly.
- */
-function deriveHttpUrl(wsUrl) {
-  const url = new URL(wsUrl);
-  url.protocol = url.protocol === "wss:" ? "https:" : "http:";
-  return url.origin;
-}
-
-/**
  * Reads the driver's configuration from the environment.
  *
  * Every Smart Checkpoints variable is read under both its `SC_*` name and the
@@ -74,9 +64,9 @@ function loadConfig(source = process.env) {
     driverName: pkg.name,
     driverVersion: pkg.version,
     wsUrl,
-    httpUrl: stripTrailingSlash(
-      env(source, "SC_HTTP_URL", "GBDS_HTTP_URL") || deriveHttpUrl(wsUrl),
-    ),
+    // No REST origin: protocol v2 carries the checkpoint coordinates inside
+    // the request, so the only thing this driver talks to over HTTP is OSRM.
+    // `SC_HTTP_URL` in an existing .env is simply ignored.
     apiKey: requiredEnv(source, "SC_API_KEY", "GBDS_API_KEY"),
     osrmBaseUrl: stripTrailingSlash(
       source.OSRM_BASE_URL || DEFAULT_OSRM_BASE_URL,
