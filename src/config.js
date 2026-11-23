@@ -44,6 +44,19 @@ function stripTrailingSlash(url) {
   return url.replace(/\/+$/, "");
 }
 
+function httpUrl(name, value) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be an http(s) URL, got "${value}"`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${name} must be an http(s) URL, got "${value}"`);
+  }
+  return value;
+}
+
 /**
  * Reads the driver's configuration from the environment.
  *
@@ -51,7 +64,7 @@ function stripTrailingSlash(url) {
  * `GBDS_*` name this driver originally shipped with. Existing .env files keep
  * working; new ones are spelled the way the rest of the ecosystem is.
  */
-function loadConfig(source = process.env) {
+function loadConfig(source = process.env, { dashboard = false } = {}) {
   const wsUrl = env(source, "SC_WS_URL", "GBDS_WS_URL") || DEFAULT_WS_URL;
 
   // Fail here rather than at connect time if the URL is malformed.
@@ -67,9 +80,14 @@ function loadConfig(source = process.env) {
     // No REST origin: protocol v2 carries the checkpoint coordinates inside
     // the request, so the only thing this driver talks to over HTTP is OSRM.
     // `SC_HTTP_URL` in an existing .env is simply ignored.
-    apiKey: requiredEnv(source, "SC_API_KEY", "GBDS_API_KEY"),
-    osrmBaseUrl: stripTrailingSlash(
-      source.OSRM_BASE_URL || DEFAULT_OSRM_BASE_URL,
+    // With the dashboard on, the key comes from the project picked there, so
+    // a missing one is a question to ask rather than a reason to exit.
+    apiKey: dashboard
+      ? env(source, "SC_API_KEY", "GBDS_API_KEY") || null
+      : requiredEnv(source, "SC_API_KEY", "GBDS_API_KEY"),
+    osrmBaseUrl: httpUrl(
+      "OSRM_BASE_URL",
+      stripTrailingSlash(source.OSRM_BASE_URL || DEFAULT_OSRM_BASE_URL),
     ),
     requestTimeoutMs: positiveIntEnv(source, "REQUEST_TIMEOUT_MS", 5000),
     maxConcurrentOsrm: positiveIntEnv(source, "MAX_CONCURRENT_OSRM", 4),
