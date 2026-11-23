@@ -1,3 +1,7 @@
 node_modules/
 .env
 npm-debug.log*
+
+# Projects, keys and settings saved by the dashboard.
+projects.json
+projects.json.*

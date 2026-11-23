@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Smart Checkpoints driver</title>
+    <link rel="icon" href="logo-mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img src="logo-mark.svg" alt="" width="34" height="37" />
+        <div>
+          <strong>Smart Checkpoints</strong>
+          <span id="driver-title">Driver</span>
+        </div>
+      </div>
+      <div class="pill" id="status-pill" data-tone="idle">
+        <i></i><span id="status-label">Starting…</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="card hero" id="hero">
+        <svg class="hero-road" viewBox="0 0 320 120" aria-hidden="true">
+          <path d="M-10 92 C 70 92, 90 30, 170 30 S 270 80, 330 40" />
+          <circle cx="60" cy="86" r="7" />
+          <circle cx="170" cy="30" r="7" />
+          <circle cx="282" cy="62" r="7" />
+        </svg>
+        <div class="hero-main">
+          <p class="eyebrow">Serving project</p>
+          <h1 id="active-name">No project yet</h1>
+          <p class="meta" id="active-meta"></p>
+          <p class="detail" id="status-detail"></p>
+        </div>
+        <div class="hero-actions">
+          <button type="button" class="btn ghost" id="btn-disconnect" hidden>Disconnect</button>
+          <button type="button" class="btn primary" id="btn-reconnect" hidden>Connect</button>
+        </div>
+      </section>
+
+      <div class="grid">
+        <div class="col">
+          <section class="card" id="projects-card">
+            <header class="card-head">
+              <div>
+                <h2>Projects</h2>
+                <p class="sub">Pick one and the driver switches over by itself. No restart, no .env.</p>
+              </div>
+            </header>
+
+            <nav class="tabs" role="tablist">
+              <button type="button" role="tab" data-tab="saved">Saved</button>
+              <button type="button" role="tab" data-tab="server">From the server</button>
+              <button type="button" role="tab" data-tab="key">Paste a key</button>
+            </nav>
+
+            <div class="tab-panel" data-panel="saved">
+              <ul class="list" id="saved-list"></ul>
+              <p class="empty" id="saved-empty">
+                Nothing saved yet. Projects you connect to are remembered here.
+              </p>
+            </div>
+
+            <div class="tab-panel" data-panel="server">
+              <form id="admin-form" class="stack" autocomplete="off">
+                <label class="field">
+                  <span>Admin password of <b class="server-name"></b></span>
+                  <input type="password" id="admin-password" placeholder="ADMIN_PASSWORD from the server's .env" />
+                </label>
+                <label class="check">
+                  <input type="checkbox" id="admin-remember" checked />
+                  <span>Remember it on this computer</span>
+                </label>
+                <div class="actions">
+                  <button type="submit" class="btn primary">Show projects</button>
+                </div>
+              </form>
+              <div id="server-browser" hidden>
+                <div class="list-bar">
+                  <span class="sub">Projects on <b class="server-name"></b></span>
+                  <span class="spacer"></span>
+                  <button type="button" class="btn link" id="server-refresh">Refresh</button>
+                  <button type="button" class="btn link" id="admin-forget">Forget password</button>
+                </div>
+                <ul class="list" id="server-list"></ul>
+                <p class="empty" id="server-empty" hidden>This server has no projects yet.</p>
+              </div>
+            </div>
+
+            <div class="tab-panel" data-panel="key">
+              <form id="key-form" class="stack" autocomplete="off">
+                <label class="field">
+                  <span>Operator API key</span>
+                  <div class="input-row">
+                    <input type="password" id="key-input" placeholder="Paste the project's key" spellcheck="false" />
+                    <button type="button" class="btn ghost small" data-reveal="key-input">Show</button>
+                  </div>
+                </label>
+                <label class="field">
+                  <span>Name <em>(optional, the server's name is used otherwise)</em></span>
+                  <input type="text" id="key-name" placeholder="e.g. Ring road demo" />
+                </label>
+                <div class="actions">
+                  <span class="sub">Checked with <b class="server-name"></b> before it is used.</span>
+                  <span class="spacer"></span>
+                  <button type="submit" class="btn primary">Check and connect</button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <section class="card" id="settings-card">
+            <header class="card-head">
+              <div>
+                <h2>Settings</h2>
+                <p class="sub">Saved here, these win over .env. Saving reconnects the driver.</p>
+              </div>
+            </header>
+            <form id="settings-form" class="stack" autocomplete="off">
+              <div id="settings-fields" class="stack"></div>
+              <div class="actions">
+                <button type="button" class="btn ghost" id="settings-reset">Back to .env</button>
+                <span class="spacer"></span>
+                <button type="submit" class="btn primary">Save and reconnect</button>
+              </div>
+            </form>
+          </section>
+        </div>
+
+        <div class="col">
+          <section class="card" id="status-card">
+            <header class="card-head"><h2>Status</h2></header>
+            <dl class="stats" id="stats"></dl>
+          </section>
+
+          <section class="card log-card">
+            <header class="card-head">
+              <h2>Live log</h2>
+              <span class="spacer"></span>
+              <label class="check small"><input type="checkbox" id="log-follow" checked /><span>Follow</span></label>
+              <button type="button" class="btn link" id="log-clear">Clear view</button>
+            </header>
+            <ol class="log" id="log"></ol>
+          </section>
+        </div>
+      </div>
+
+      <footer class="foot">
+        Projects and settings live in <code id="store-file">projects.json</code>, which git ignores.
+      </footer>
+    </main>
+
+    <div class="toast" id="toast" role="status" hidden></div>
+
+    <script src="dashboard.js"></script>
+  </body>
+</html>

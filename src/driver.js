@@ -1,5 +1,6 @@
 "use strict";
 
+const { EventEmitter } = require("events");
 const WebSocket = require("ws");
 
 const log = require("./logger");
@@ -88,7 +89,7 @@ function readCoordinate(value) {
   return { lat, lng };
 }
 
-class Driver {
+class Driver extends EventEmitter {
   #config;
   #limiter;
   #socket = null;
@@ -98,6 +99,7 @@ class Driver {
   #reconnectTimer = null;
   #stopped = false;
   #onFatal;
+  #stopOnReject;
 
   /**
    * @param {object} config
@@ -105,11 +107,23 @@ class Driver {
    * @param {(reason: string) => void} [options.onFatal] Called when the server
    *   has said something that reconnecting cannot fix - a slot taken by
    *   another copy of this driver, or a role it does not recognise.
+   * @param {boolean} [options.stopOnReject] Stop instead of retrying when the
+   *   server rejects the key. The dashboard sets it: a wrong key stays wrong,
+   *   and it would rather say so than knock on the door every 30 seconds.
+   *
+   * Emits `status` ({ state, ... }) as the connection changes, and `request`
+   * once per answered or failed edge.
    */
-  constructor(config, { onFatal } = {}) {
+  constructor(config, { onFatal, stopOnReject = false } = {}) {
+    super();
     this.#config = config;
     this.#limiter = new Semaphore(config.maxConcurrentOsrm);
     this.#onFatal = onFatal || (() => {});
+    this.#stopOnReject = stopOnReject;
+  }
+
+  get connected() {
+    return this.#authenticated;
   }
 
   start() {
@@ -132,6 +146,7 @@ class Driver {
 
   #connect() {
     log.info(`connecting to ${this.#config.wsUrl}`);
+    this.emit("status", { state: "connecting" });
 
     const socket = new WebSocket(this.#config.wsUrl);
     this.#socket = socket;
@@ -140,6 +155,7 @@ class Driver {
 
     socket.on("open", () => {
       log.info("connected, authenticating");
+      this.emit("status", { state: "authenticating" });
       this.#send(
         {
           type: "auth",
@@ -179,10 +195,12 @@ class Driver {
             : "the server does not recognise this driver's role";
         log.error(`${reasonText}${detail}; not reconnecting`);
         this.stop();
+        this.emit("status", { state: "fatal", reason: reasonText });
         this.#onFatal(reasonText);
         return;
       }
 
+      if (this.#stopped) return;
       this.#scheduleReconnect(`connection closed with code ${code}${detail}`);
     });
   }
@@ -201,6 +219,12 @@ class Driver {
     const delay = Math.round(backoff * (0.8 + Math.random() * 0.4));
 
     log.warn(`${reason}; reconnecting in ${delay}ms (attempt ${this.#reconnectAttempt})`);
+    this.emit("status", {
+      state: "reconnecting",
+      reason,
+      delayMs: delay,
+      attempt: this.#reconnectAttempt,
+    });
     this.#reconnectTimer = setTimeout(() => {
       this.#reconnectTimer = null;
       this.#connect();
@@ -231,6 +255,11 @@ class Driver {
           `authenticated for project ${message.projectId} on protocol ` +
             `v${this.#serverProtocolVersion}; routing via ${this.#config.osrmBaseUrl}`,
         );
+        this.emit("status", {
+          state: "connected",
+          projectId: message.projectId,
+          protocolVersion: this.#serverProtocolVersion,
+        });
         if (this.#serverProtocolVersion < PROTOCOL_VERSION) {
           // A v1 server sends node indices and no coordinates, and this driver
           // no longer looks them up over REST. Say so once, here, rather than
@@ -254,6 +283,11 @@ class Driver {
       case "error":
         if (!this.#authenticated) {
           log.error(`authentication rejected by server: ${message.message}`);
+          if (this.#stopOnReject) {
+            this.stop();
+            this.emit("status", { state: "rejected", message: message.message });
+            return;
+          }
           socket.close();
         } else {
           log.warn(`server reported an error: ${message.message}`);
@@ -299,6 +333,13 @@ class Driver {
         "the request carried no usable WGS84 coordinates",
         socket,
       );
+      this.emit("request", {
+        ok: false,
+        edge,
+        code: "invalid-input",
+        message: "no usable coordinates",
+        elapsedMs: 0,
+      });
       return;
     }
 
@@ -321,6 +362,13 @@ class Driver {
       if (endpointOffsets) result.endpointOffsets = endpointOffsets;
 
       const delivered = this.#send(result, socket);
+      this.emit("request", {
+        ok: true,
+        edge,
+        distance,
+        elapsedMs: Date.now() - startedAt,
+        geometry: Boolean(path),
+      });
 
       log.info(
         `request=${requestId} edge=${edge} ` +
@@ -337,6 +385,13 @@ class Driver {
       // that looked resolved at zero metres. Never emit a guessed distance.
       const code = protocolErrorCode(err);
       this.#sendError(requestId, code, err.message, socket);
+      this.emit("request", {
+        ok: false,
+        edge,
+        code,
+        message: err.message,
+        elapsedMs: Date.now() - startedAt,
+      });
       log.error(
         `request=${requestId} edge=${edge} FAILED after ${Date.now() - startedAt}ms ` +
           `as ${code}: ${err.message}` +

@@ -160,7 +160,7 @@ dependency: `ws`.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `SC_WS_URL` | `ws://localhost:3000/distance-driver` | Driver WebSocket endpoint. |
-| `SC_API_KEY` | *(required)* | Project API key. The distance driver is an operator of its project, so this is the project's operator key, not a camera's reporter key. |
+| `SC_API_KEY` | *(chosen in the dashboard)* | Project API key, required only with `SC_DASHBOARD=off`. The distance driver is an operator of its project, so this is the project's operator key, not a camera's reporter key. |
 | `OSRM_BASE_URL` | `https://router.project-osrm.org` | OSRM server. The default is the public demo instance. |
 | `REQUEST_TIMEOUT_MS` | `5000` | Per-attempt timeout for OSRM. |
 | `MAX_CONCURRENT_OSRM` | `4` | How many OSRM calls may be in flight at once. |
@@ -178,8 +178,53 @@ or export the variables yourself.
 ## Run
 
 ```bash
-SC_API_KEY=your-project-key npm start
+npm start
 ```
+
+The dashboard opens in the browser and asks which project to serve. To run
+without it, as before:
+
+```bash
+SC_DASHBOARD=off SC_API_KEY=your-project-key npm start
+```
+
+## Dashboard
+
+`npm start` opens a dashboard in the browser at
+`http://127.0.0.1:4200/dashboard/`. There is no key to copy into `.env`:
+
+- **Saved** lists every project this driver has served. Click **Use** to switch;
+  the driver drops the old connection and connects with the other key, with no
+  restart.
+- **From the server** lists every project on the server after you enter the
+  server's `ADMIN_PASSWORD` once (tick *Remember* to skip it next time). The
+  keys stay in the driver and never reach the page.
+- **Paste a key** checks the key with the server before using it, so a camera's
+  reporter key or a typo is refused with the server's reason.
+
+Settings changed there (server address, OSRM server, timeout, concurrency)
+override `.env`; **Back to .env** drops them. The status panel counts answered
+and failed edges, and the live log is the terminal's log.
+
+Everything the dashboard saves goes in `projects.json` next to `package.json`.
+It holds API keys, so git ignores it. On the first start, a key already in
+`.env` is checked and saved there, so an existing setup carries on as before.
+
+The dashboard answers this computer only: loopback connections with a loopback
+`Host` header. If the port is taken, by a second copy of the driver for
+example, it moves to the next free one and prints the address.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `SC_DASHBOARD` | on | `off` runs without it, the old way: key from `.env`, and exit non-zero when another driver takes the slot. Use this under a service manager. |
+| `SC_DASHBOARD_PORT` | `4200` | Dashboard port. |
+| `SC_DASHBOARD_OPEN` | on | `off` prints the link instead of opening the browser. |
+| `SC_DASHBOARD_FILE` | `./projects.json` | Where saved projects and settings go. |
+
+With the dashboard on, a slot lost to another driver or a rejected key stops the
+driver and says so on the dashboard instead of exiting, and **Try again**
+reconnects.
+
 
 ## Test it without running the server
 
